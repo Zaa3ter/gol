@@ -22,18 +22,18 @@ type model struct {
 	frame   core.State
 	courser location
 	playing bool
-	stop    chan struct{}
+	stop    bool
 }
 
 type next struct{}
 
 func (m model) sendNext() tea.Msg {
-	select {
-	case <-m.stop:
-		return nil // cancelled
-	case <-time.After(100 * time.Millisecond):
-		return next{}
+	if m.stop {
+		return nil
 	}
+
+	<-time.After(100 * time.Millisecond)
+	return next{}
 }
 
 type location struct {
@@ -67,7 +67,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "up", "k":
 			if m.playing {
-				break
+				return m, nil
 			}
 			if m.courser.y > 0 {
 				m.courser.y -= 1
@@ -75,7 +75,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "down", "j":
 			if m.playing {
-				break
+				return m, nil
 			}
 			if m.courser.y < len(m.frame)-1 {
 				m.courser.y += 1
@@ -83,7 +83,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "right", "l":
 			if m.playing {
-				break
+				return m, nil
 			}
 			if m.courser.x < len(m.frame[0])-1 {
 				m.courser.x += 1
@@ -91,7 +91,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "left", "h":
 			if m.playing {
-				break
+				return m, nil
 			}
 			if m.courser.x > 0 {
 				m.courser.x -= 1
@@ -99,24 +99,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case " ":
 			if m.playing {
-				break
+				return m, nil
 			}
 			m.frame[m.courser.y][m.courser.x] = !m.frame[m.courser.y][m.courser.x]
 
 		case "s":
 			if m.playing {
-				break
+				return m, nil
 			}
 			m.frame = core.PlayRound(m.frame)
 		case "enter":
 			if m.playing {
 				m.playing = false
-				close(m.stop)
-			} else {
-				m.playing = true
-				m.stop = make(chan struct{})
-				return m, m.sendNext
+				m.stop = true
+				return m, nil
 			}
+			m.playing = true
+			m.stop = false
+			return m, m.sendNext
 		}
 	}
 	return m, nil
