@@ -19,8 +19,8 @@ func main() {
 }
 
 type model struct {
-	frame   core.State
-	courser location
+	core.State
+	courser core.Point
 	playing bool
 	stop    bool
 }
@@ -36,11 +36,6 @@ func (m model) sendNext() tea.Msg {
 	return next{}
 }
 
-type location struct {
-	x int
-	y int
-}
-
 func (m model) Init() tea.Cmd {
 	return nil
 }
@@ -48,15 +43,14 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.frame = core.CreateState(uint(msg.Height-3), uint(msg.Width/2))
-		m.courser = location{0, 0}
+		m.State = core.CreateState(msg.Height-3, msg.Width/2)
 		return m, nil
 
 	case next:
 		if !m.playing {
 			break
 		}
-		m.frame = core.PlayRound(m.frame)
+		m.NextRound()
 		return m, m.sendNext
 
 	case tea.KeyMsg:
@@ -69,45 +63,46 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.playing {
 				return m, nil
 			}
-			if m.courser.y > 0 {
-				m.courser.y -= 1
+			if m.courser.Y > 0 {
+				m.courser.Y -= 1
 			}
 
 		case "down", "j":
 			if m.playing {
 				return m, nil
 			}
-			if m.courser.y < len(m.frame)-1 {
-				m.courser.y += 1
+			if m.courser.Y < len(m.State)-1 {
+				m.courser.Y += 1
 			}
 
 		case "right", "l":
 			if m.playing {
 				return m, nil
 			}
-			if m.courser.x < len(m.frame[0])-1 {
-				m.courser.x += 1
+			if m.courser.X < len(m.State[0])-1 {
+				m.courser.X += 1
 			}
 
 		case "left", "h":
 			if m.playing {
 				return m, nil
 			}
-			if m.courser.x > 0 {
-				m.courser.x -= 1
+			if m.courser.X > 0 {
+				m.courser.X -= 1
 			}
 
 		case " ":
 			if m.playing {
 				return m, nil
 			}
-			m.frame[m.courser.y][m.courser.x] = !m.frame[m.courser.y][m.courser.x]
+			m.State.Toggle(m.courser)
 
 		case "s":
 			if m.playing {
 				return m, nil
 			}
-			m.frame = core.PlayRound(m.frame)
+			m.NextRound()
+
 		case "enter":
 			if m.playing {
 				m.playing = false
@@ -124,15 +119,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() (s string) {
 
-	for y, row := range m.frame {
+	for y, row := range m.State {
 		for x := range row {
-			if m.courser.y == y && m.courser.x == x {
+			p := core.Point{X: x, Y: y}
+			if p == m.courser {
 				s += "\033[7m>\033[0m"
 			} else {
 				s += " "
 			}
 
-			if m.frame[y][x] {
+			if m.State.Get(p) {
 				s += "\033[32m◼\033[0m"
 			} else {
 				s += "\033[90m░\033[0m"
