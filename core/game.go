@@ -1,94 +1,112 @@
 package core
 
+import (
+	"math/rand"
+	"time"
+)
+
 // 1 Any live cell with fewer than two live neighbours dies, as if by underpopulation.
 // 2 Any live cell with two or three live neighbours lives on to the next generation.
 // 3 Any live cell with more than three live neighbours dies, as if by overpopulation.
 // 4 Any dead cell with exactly three live neighbours becomes a live cell, as if by reproduction.
 
-type State [][]bool
-
-func (st State) InBounds(p Point) bool {
-	if p.X < 0 || p.X >= len(st[0]) || p.Y < 0 || p.Y >= len(st) {
-		return false
-	}
-	return true
+type State struct {
+	Cells  []bool
+	Rows   int
+	Cols   int
+	Buffer []bool // Reuse buffer for next generation
 }
 
-func (st State) NextRound() {
-	newState := CreateState(len(st), len(st[0]))
-	for y, row := range st {
-		for x := range row {
-			p := Point{X: x, Y: y}
-			ncount := countNeigbours(st, p)
-			if ncount == 2 {
-				newState.Set(p, st.Get(p))
+func (st *State) InBounds(p Point) bool {
+	return p.X >= 0 && p.X < st.Cols && p.Y >= 0 && p.Y < st.Rows
+}
+
+func (st *State) NextRound() {
+	if len(st.Buffer) != len(st.Cells) {
+		st.Buffer = make([]bool, len(st.Cells))
+	}
+
+	cols := st.Cols
+	rows := st.Rows
+
+	for y := range rows {
+		for x := range cols {
+			ncount := 0
+			// Neighbor check
+			for dy := -1; dy <= 1; dy++ {
+				for dx := -1; dx <= 1; dx++ {
+					if dy == 0 && dx == 0 {
+						continue
+					}
+					nx, ny := x+dx, y+dy
+					if nx >= 0 && nx < cols && ny >= 0 && ny < rows {
+						if st.Cells[ny*cols+nx] {
+							ncount++
+						}
+					}
+				}
+			}
+
+			idx := y*cols + x
+			if st.Cells[idx] {
+				st.Buffer[idx] = ncount == 2 || ncount == 3
 			} else {
-				newState.Set(p, !st.Get(p))
+				st.Buffer[idx] = ncount == 3
 			}
 		}
 	}
+	// Swap buffers
+	st.Cells, st.Buffer = st.Buffer, st.Cells
 }
 
-func (st State) Set(p Point, v bool) {
-	st[p.Y][p.X] = v
+func (st *State) Seed() {
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for i := range st.Cells {
+		st.Cells[i] = r.Float32() < 0.2
+	}
 }
 
-func (st State) Toggle(p Point) {
-	st.Set(p, !st.Get(p))
+func (st *State) Toggle(p Point) {
+	if st.InBounds(p) {
+		idx := p.Y*st.Cols + p.X
+		st.Cells[idx] = !st.Cells[idx]
+	}
 }
 
-func (st State) Get(p Point) bool {
-	return st[p.Y][p.X]
+func (st *State) Get(p Point) bool {
+	if !st.InBounds(p) {
+		return false
+	}
+	return st.Cells[p.Y*st.Cols+p.X]
 }
 
 type Point struct {
 	X, Y int
 }
 
-func addPoint(p1, p2 Point) Point {
-	return Point{
-		X: p1.X + p2.X,
-		Y: p1.Y + p2.Y,
-	}
-}
-
-func StateExample() State {
-	st := CreateState(60, 30)
-	st[18][15] = true
-	st[19][15] = true
-	st[19][14] = true
-	st[20][15] = true
-	st[20][16] = true
-	return st
-}
-
 func CreateState(rows, cols int) State {
-	st := make([][]bool, rows)
-	for r := range rows {
-		st[r] = make([]bool, cols)
+	return State{
+		Cells:  make([]bool, rows*cols),
+		Rows:   rows,
+		Cols:   cols,
+		Buffer: make([]bool, rows*cols),
 	}
-	return State(st)
 }
 
-var directions = [8]Point{
-	{0, 1},
-	{1, 1},
-	{1, 0},
-	{1, -1},
-	{0, -1},
-	{-1, -1},
-	{-1, 0},
-	{-1, 1},
-}
-
-func countNeigbours(st State, p Point) (count int) {
-	for _, dir := range directions {
-		n := addPoint(p, dir)
-		if !st.InBounds(n) {
-			continue
-		}
-		if st.Get(p) {
-			count++
+func (st *State) countNeigbours(p Point) (count int) {
+	cols := st.Cols
+	rows := st.Rows
+	for dy := -1; dy <= 1; dy++ {
+		for dx := -1; dx <= 1; dx++ {
+			if dy == 0 && dx == 0 {
+				continue
+			}
+			nx, ny := p.X+dx, p.Y+dy
+			if nx >= 0 && nx < cols && ny >= 0 && ny < rows {
+				if st.Cells[ny*cols+nx] {
+					count++
+				}
+			}
 		}
 	}
 	return count
