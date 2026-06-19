@@ -128,7 +128,7 @@ func (m model) View() string {
 	for y := range m.state.Rows {
 		for x := range m.state.Cols {
 			p := core.Point{X: x, Y: y}
-			if p == m.courser {
+			if p == m.courser && !m.playing {
 				b.WriteString("\033[7m>\033[0m")
 			} else {
 				b.WriteByte(' ')
